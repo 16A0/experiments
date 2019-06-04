@@ -1,0 +1,151 @@
+From https://packaging.python.org/tutorials/installing-packages/ 
+	
+python -m pip install --upgrade pip setuptools wheel
+
+pip install ‘pynvx>=1.0.0’ 
+
+conda update -n base - defaults conda
+
+# set up tensor flow environment for latest build
+conda create —name tensorflow_latest
+conda install -n tensorflow_latest tensorflow
+
+# run these to update anaconda navigator and conda
+conda update anaconda-navigator
+conda update conda
+
+# errors
+OMP: Error #15: Initializing libiomp5.dylib, but found libiomp5.dylib already initialized.
+OMP: Hint: This means that multiple copies of the OpenMP runtime have been linked into the program. That is dangerous, since it can degrade performance or cause incorrect results. The best thing to do is to ensure that only a single OpenMP runtime is linked into the process, e.g. by avoiding static linking of the OpenMP runtime in any library. As an unsafe, unsupported, undocumented workaround you can set the environment variable KMP_DUPLICATE_LIB_OK=TRUE to allow the program to continue to execute, but that may cause crashes or silently produce incorrect results. For more information, please see http://www.intel.com/software/products/support/.
+
+# trying brew uninstall libiomp clang-ompbrew uninstall libiomp clang-omp (didn’t solve the problem)
+# trying (install nomkl into test environment)
+# reading
+https://docs.anaconda.com/mkl-optimizations/
+https://software.intel.com/en-us/articles/tips-to-improve-performance-for-popular-deep-learning-frameworks-on-multi-core-cpus
+
+# errors
+OMP: Warning #230: OMP_NUM_THREADS: Invalid symbols found. Check the value "NUM_PARALLEL_EXEC_UNITS".
+
+User settings:
+
+   KMP_AFFINITY=granularity=fine,verbose,compact,1,0
+   KMP_BLOCKTIME=30
+   KMP_SETTINGS=1
+   OMP_NUM_THREADS=NUM_PARALLEL_EXEC_UNITS
+
+Effective settings:
+
+   KMP_ABORT_DELAY=0
+   KMP_ADAPTIVE_LOCK_PROPS='1,1024'
+   KMP_ALIGN_ALLOC=64
+   KMP_ALL_THREADPRIVATE=128
+   KMP_ATOMIC_MODE=2
+   KMP_BLOCKTIME=30
+   KMP_DETERMINISTIC_REDUCTION=false
+   KMP_DEVICE_THREAD_LIMIT=2147483647
+   KMP_DISP_NUM_BUFFERS=7
+   KMP_DUPLICATE_LIB_OK=false
+   KMP_FORCE_REDUCTION: value is not defined
+   KMP_FOREIGN_THREADS_THREADPRIVATE=true
+   KMP_FORKJOIN_BARRIER='2,2'
+   KMP_FORKJOIN_BARRIER_PATTERN='hyper,hyper'
+   KMP_FORKJOIN_FRAMES=true
+   KMP_FORKJOIN_FRAMES_MODE=3
+   KMP_GTID_MODE=0
+   KMP_HANDLE_SIGNALS=false
+   KMP_HOT_TEAMS_MAX_LEVEL=1
+   KMP_HOT_TEAMS_MODE=0
+   KMP_INIT_AT_FORK=true
+   KMP_INIT_WAIT=2048
+   KMP_ITT_PREPARE_DELAY=0
+   KMP_LIBRARY=throughput
+   KMP_LOCK_KIND=queuing
+   KMP_MALLOC_POOL_INCR=1M
+   KMP_NEXT_WAIT=1024
+   KMP_NUM_LOCKS_IN_BLOCK=1
+   KMP_PLAIN_BARRIER='2,2'
+   KMP_PLAIN_BARRIER_PATTERN='hyper,hyper'
+   KMP_REDUCTION_BARRIER='1,1'
+   KMP_REDUCTION_BARRIER_PATTERN='hyper,hyper'
+   KMP_SCHEDULE='static,balanced;guided,iterative'
+   KMP_SETTINGS=true
+   KMP_SPIN_BACKOFF_PARAMS='4096,100'
+   KMP_STACKOFFSET=0
+   KMP_STACKPAD=0
+   KMP_STACKSIZE=4M
+   KMP_STORAGE_MAP=false
+   KMP_TASKING=2
+   KMP_TASKLOOP_MIN_TASKS=0
+   KMP_TASK_STEALING_CONSTRAINT=1
+   KMP_TEAMS_THREAD_LIMIT=4
+   KMP_VERSION=false
+   KMP_WARNINGS=true
+   OMP_AFFINITY_FORMAT='OMP: pid %P tid %T thread %n bound to OS proc set {%a}'
+   OMP_ALLOCATOR=omp_default_mem_alloc
+   OMP_CANCELLATION=false
+   OMP_DEFAULT_DEVICE=0
+   OMP_DISPLAY_AFFINITY=false
+   OMP_DISPLAY_ENV=false
+   OMP_DYNAMIC=false
+   OMP_MAX_ACTIVE_LEVELS=2147483647
+   OMP_MAX_TASK_PRIORITY=0
+   OMP_NESTED=false
+   OMP_NUM_THREADS: value is not defined
+   OMP_PROC_BIND='false'
+   OMP_SCHEDULE='static'
+   OMP_STACKSIZE=4M
+   OMP_TARGET_OFFLOAD=DEFAULT
+   OMP_THREAD_LIMIT=2147483647
+   OMP_TOOL=enabled
+   OMP_TOOL_LIBRARIES: value is not defined
+   OMP_WAIT_POLICY=PASSIVE
+
+
+################
+# TENSORFLOW #
+################
+Most probably you have not installed TF from source and instead of it used something like pip install tensorflow. That means that you installed pre-built (by someone else) binaries which were not optimized for your architecture. And these warnings tell you exactly this: something is available on your architecture, but it will not be used because the binary was not compiled with it. Here is the part from documentation.
+TensorFlow checks on startup whether it has been compiled with the optimizations available on the CPU. If the optimizations are not included, TensorFlow will emit warnings, e.g. AVX, AVX2, and FMA instructions not included.
+Good thing is that most probably you just want to learn/experiment with TF so everything will work properly and you should not worry about it
+
+What are SSE4.2 and AVX?
+========================
+Wikipedia has a good explanation about SSE4.2 and AVX. This knowledge is not required to be good at machine-learning. You may think about them as a set of some additional instructions for a computer to use multiple data points against a single instruction to perform operations which may be naturally parallelized (for example adding two arrays).
+Both SSE and AVX are implementation of an abstract idea of SIMD (Single instruction, multiple data), which is
+a class of parallel computers in Flynn's taxonomy. It describes computers with multiple processing elements that perform the same operation on multiple data points simultaneously. Thus, such machines exploit data level parallelism, but not concurrency: there are simultaneous (parallel) computations, but only a single process (instruction) at a given moment
+This is enough to answer your next question.
+
+How do these SSE4.2 and AVX improve CPU computations for TF tasks
+They allow a more efficient computation of various vector (matrix/tensor) operations. You can read more in these slides
+
+How to make Tensorflow compile using the two libraries?
+You need to have a binary which was compiled to take advantage of these instructions. The easiest way is to compile it yourself. As Mike and Yaroslav suggested, you can use the following bazel command
+bazel build -c opt --copt=-mavx --copt=-mavx2 --copt=-mfma --copt=-mfpmath=both --copt=-msse4.2 --config=cuda -k //tensorflow/tools/pip_package:build_pip_package
+
+Install Bazel
+https://docs.bazel.build/versions/master/install-os-x.html#install-on-mac-os-x-homebrew
+
+# run
+brew tap bazelbuild/tap
+brew install bazelbuild/tap/bazel
+
+
+# install tensor flow source
+# from https://www.tensorflow.org/install/source
+git clone https://github.com/tensorflow/tensorflow.git
+
+#  use the following command to make sure you get the right TensorFlow with Intel optimizations
+conda install tensorflow -c anaconda
+
+https://docs.bazel.build/versions/master/install-os-x.html
+
+https://www.tensorflow.org/install/source
+	working through configuration
+	from outside tensor flow directory 
+		conda activate test_latest_tf
+		python -c "import tensorflow as tf; tf.enable_eager_execution(); 	print(tf.reduce_sum(tf.random_normal([1000, 1000])))"
+		output ->
+			2019-05-11 14:37:43.672660: I tensorflow/core/platform/	cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: SSE4.1 SSE4.2 AVX
+	from inside tensor flow directory 
+	bazel build -c opt --copt=-march=native --copt=-mfpmath=both --config=cuda -k //tensorflow/tools/pip_package:build_pip_package
